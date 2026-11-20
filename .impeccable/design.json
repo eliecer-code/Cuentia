@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T16:18:00.000Z",
+  "title": "Design System: Cuentia",
+  "extensions": {
+    "colorMeta": {
+      "zocalo-esmalte": {
+        "role": "primary",
+        "displayName": "Zócalo Esmalte",
+        "canonical": "#145343",
+        "tonalRamp": ["#07211A", "#0E3B30", "#145343", "#1F6E5A", "#3D8E78", "#76B7A4", "#B8DFD2", "#E6F2EE"]
+      },
+      "terracota-fiado": {
+        "role": "secondary",
+        "displayName": "Terracota Fiado",
+        "canonical": "#B44C1E",
+        "tonalRamp": ["#4A1B08", "#752E10", "#963E18", "#B44C1E", "#D16A3B", "#E49570", "#F3C4AE", "#FBECE5"]
+      },
+      "verde-abono": {
+        "role": "tertiary",
+        "displayName": "Verde Abono",
+        "canonical": "#157A4A",
+        "tonalRamp": ["#08301D", "#0E4C2F", "#10633C", "#157A4A", "#2A9863", "#5BB98B", "#A2DBBD", "#E5F5EC"]
+      },
+      "cal-mate": {
+        "role": "neutral",
+        "displayName": "Cal Mate",
+        "canonical": "#FAF9F6",
+        "tonalRamp": ["#18211E", "#34403C", "#4A5954", "#6C7B75", "#9BA7A2", "#C9C4B6", "#E2DFD5", "#FAF9F6"]
+      },
+      "tinta-carbon": {
+        "role": "neutral",
+        "displayName": "Tinta Carbón",
+        "canonical": "#18211E",
+        "tonalRamp": ["#0B100E", "#18211E", "#2C3834", "#4A5954", "#6A7A74", "#98A49F", "#CFD5D2", "#F1F3F2"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display COP", "purpose": "Saldo patrimonial hero en la banda del zócalo." },
+      "headline": { "displayName": "Headline Flujo", "purpose": "Montos de Fiado hoy, Abonos hoy e input numérico del Drawer." },
+      "title": { "displayName": "Title", "purpose": "Encabezados de pantallas, títulos de Drawer y nombres de clientes." },
+      "body": { "displayName": "Body", "purpose": "Referencias vecinales, ayudas breves y mensajes de validación." },
+      "label": { "displayName": "Label", "purpose": "Encabezados de sección en mayúsculas y navegación." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "transition-control", "value": "150ms cubic-bezier(0.2, 0, 0, 1)", "purpose": "Cambio rápido de color en botones, tabs y enlaces táctiles." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "390px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón Fiado (+ Fiar)",
+      "kind": "button",
+      "refersTo": "button-fiado",
+      "description": "Acción primaria para registrar una compra fiada desde el mostrador.",
+      "html": "<button class=\"ds-btn-fiado\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg><span>Fiar</span></button>",
+      "css": ".ds-btn-fiado { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 0 20px; border-radius: 12px; border: 1px solid #963E18; background: #B44C1E; color: #FAF9F6; font-family: 'Public Sans Variable', system-ui, sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; transition: background-color 150ms; } .ds-btn-fiado:hover { background: #963E18; } .ds-btn-fiado:focus-visible { outline: 2.5px solid #145343; outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón Abono (Abonar)",
+      "kind": "button",
+      "refersTo": "button-abono",
+      "description": "Acción primaria para registrar un abono parcial o total.",
+      "html": "<button class=\"ds-btn-abono\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"20\" height=\"12\" x=\"2\" y=\"6\" rx=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"M6 12h.01M18 12h.01\"/></svg><span>Abonar</span></button>",
+      "css": ".ds-btn-abono { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 0 20px; border-radius: 12px; border: 1px solid #10633C; background: #157A4A; color: #FAF9F6; font-family: 'Public Sans Variable', system-ui, sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; transition: background-color 150ms; } .ds-btn-abono:hover { background: #10633C; } .ds-btn-abono:focus-visible { outline: 2.5px solid #145343; outline-offset: 2px; }"
+    },
+    {
+      "name": "Folio Secuencial (#seq)",
+      "kind": "chip",
+      "refersTo": "badge-folio",
+      "description": "Identificador monotónico del libro mayor para verificación verbal o por WhatsApp.",
+      "html": "<span class=\"ds-folio\">#042</span>",
+      "css": ".ds-folio { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; background: #E6F2EE; color: #145343; font-family: 'Public Sans Variable', system-ui, sans-serif; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Tarjeta Plana de Flujo",
+      "kind": "card",
+      "refersTo": "card-flat",
+      "description": "Contenedor plano de 1px para separar Fiado hoy vs Abonos hoy del saldo acumulado.",
+      "html": "<div class=\"ds-flow-card\"><div class=\"ds-flow-label\">Fiado hoy</div><div class=\"ds-flow-val\">$ 125.000</div><div class=\"ds-flow-sub\">7 compras registradas</div></div>",
+      "css": ".ds-flow-card { background: #FFFFFF; border: 1px solid #E2DFD5; border-radius: 12px; padding: 12px 14px; font-family: 'Public Sans Variable', system-ui, sans-serif; } .ds-flow-label { color: #B44C1E; font-size: 12px; font-weight: 700; } .ds-flow-val { color: #18211E; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 4px; } .ds-flow-sub { color: #5B6B65; font-size: 12px; margin-top: 2px; }"
+    },
+    {
+      "name": "Input Monetario COP",
+      "kind": "input",
+      "refersTo": "input-cop",
+      "description": "Campo numérico grande sin decimales para captura rápida en mostrador.",
+      "html": "<div class=\"ds-cop-wrap\"><span class=\"ds-cop-prefix\">$</span><input class=\"ds-cop-input\" value=\"250.000\" inputmode=\"numeric\" /></div>",
+      "css": ".ds-cop-wrap { position: relative; max-width: 320px; } .ds-cop-prefix { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); font-size: 24px; font-weight: 800; color: #4A5954; } .ds-cop-input { width: 100%; min-height: 56px; padding: 12px 16px 12px 40px; border-radius: 12px; border: 2px solid #C9C4B6; background: #FFFFFF; color: #18211E; font-family: 'Public Sans Variable', system-ui, sans-serif; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; } .ds-cop-input:focus { border-color: #145343; outline: none; }"
+    },
+    {
+      "name": "Banda Zócalo Patrimonial",
+      "kind": "custom",
+      "refersTo": "card-flat",
+      "description": "Elemento firma de Cuentia: ancla tienda activa, señal y Total por cobrar hoy.",
+      "html": "<header class=\"ds-zocalo\"><div class=\"ds-zocalo-top\"><span>TOTAL POR COBRAR HOY</span><span class=\"ds-zocalo-pill\">18 clientes</span></div><div class=\"ds-zocalo-num\">$ 1.845.000</div><div class=\"ds-zocalo-note\">Plata en la calle acumulada · No es ganancia del día</div></header>",
+      "css": ".ds-zocalo { background: #145343; color: #FAF9F6; border-bottom: 4px solid #0E3B30; padding: 16px 18px; font-family: 'Public Sans Variable', system-ui, sans-serif; } .ds-zocalo-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #CBEAD9; } .ds-zocalo-pill { background: #0E3B30; color: #FAF9F6; padding: 4px 10px; border-radius: 6px; font-variant-numeric: tabular-nums; } .ds-zocalo-num { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.025em; margin-top: 6px; } .ds-zocalo-note { font-size: 12px; color: #CBEAD9; margin-top: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Zócalo de Barrio",
+    "overview": "Cuentia traduce la arquitectura cotidiana de una tienda de esquina colombiana —pared blanca de cal mate rematada por un zócalo verde esmalte sólido— a una interfaz operativa mobile-first hecha para leerse bajo luz solar y usarse con una sola mano detrás del mostrador. En lugar de tarjetas flotantes grises con acento azul genérico, una banda estructural verde esmalte ancla la identidad de la tienda, el estado de red y el saldo patrimonial acumulado (Total por cobrar), dejando la pared clara libre para la acción diaria.",
+    "keyCharacteristics": [
+      "Banda estructural verde esmalte (superior en móvil, rail lateral izquierdo a altura completa en escritorio) con moldura sólida de 4px.",
+      "Superficies planas sobre cal mate separadas por bordes nítidos de 1px, sin sombras suaves ni glassmorphism.",
+      "Codificación semántica inequívoca con ícono + texto + color: terracota para fiados/mora y verde hoja para abonos/paz y salvo.",
+      "Ergonomía de mostrador: áreas táctiles mínimas de 48px, CTAs principales de 56px y numerales tabulares (tabular-nums) en todo valor COP."
+    ],
+    "rules": [
+      { "name": "The Zócalo Anchor Rule", "body": "El verde esmalte pertenece exclusivamente a la arquitectura de navegación, la banda patrimonial superior y los enlaces de contexto; nunca invade las tarjetas de flujo diario ni los botones de acción de dinero.", "section": "colors" },
+      { "name": "The Semantic Money Rule", "body": "Terracota significa deuda que sube o mora; verde hoja significa plata que entra o cuenta saldada. Nunca se intercambian ni se usan como decoración.", "section": "colors" },
+      { "name": "The Tabular COP Rule", "body": "Toda cifra de dinero, folio secuencial (#042), contador de clientes y conteo de días aplica font-variant-numeric: tabular-nums y whitespace-nowrap en el par símbolo-monto ($ 250.000) para evitar saltos visuales o cortes huérfanos.", "section": "typography" },
+      { "name": "The Flat Countertop Rule", "body": "Las superficies descansan planas con bordes nítidos de 1px; nunca se apilan tarjetas dentro de tarjetas ni se añaden sombras difusas o halos de color.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do mantener todo objetivo táctil en >= 48px (tabs, enlaces de acción, botón de cerrar) y los CTAs de dinero en 56px.",
+      "Do separar visualmente Total por cobrar (stock en el zócalo) de Fiado y Abonos del período (flujo en tarjetas planas), aclarando que no son ganancias.",
+      "Do usar íconos uniformes de lucide-vue-next (stroke-width 2–2.4) en lugar de flechas o puntos Unicode.",
+      "Do conservar la misma altura y una sola línea (whitespace-nowrap) en pares de botones de confirmación dentro de Drawers."
+    ],
+    "donts": [
+      "Don't colocar eyebrows o kickers encima de un heading; el propio encabezado lleva la jerarquía.",
+      "Don't usar gradientes, sombras difusas, glassmorphism, bordes laterales gruesos de acento (border-l-4) ni tarjetas anidadas.",
+      "Don't exponer jerga bancaria/ERP ni mensajes SQL crudos en la interfaz del tendero.",
+      "Don't usar colores sin texto ni ícono acompañante para diferenciar fiados, abonos o estados de red."
+    ]
+  }
+}

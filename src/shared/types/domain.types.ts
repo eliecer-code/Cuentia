@@ -1,0 +1,8 @@
+export type StoreStatus = 'active' | 'suspended' | 'closed'
+export type UserStatus = 'active' | 'disabled' | 'anonymized'
+export type StoreRole = 'owner' | 'admin' | 'employee'
+export type MembershipStatus = 'active' | 'revoked'
+export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired'
+export type CustomerCreditStatus = 'active' | 'frozen' | 'archived'
+export type LedgerEntryType = 'credit_sale' | 'payment' | 'opening_balance' | 'adjustment' | 'reversal'
+export type PaymentMethodType = 'cash' | 'nequi' | 'daviplata' | 'bank_transfer' | 'other'

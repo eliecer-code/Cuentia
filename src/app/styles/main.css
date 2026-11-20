@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@theme {
+  /* Paleta Zócalo de Barrio — contraste solar de mostrador */
+  --color-ground: #FAF9F6;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #ECEAE3;
+  --color-border: #E2DFD5;
+  --color-border-strong: #C9C4B6;
+
+  --color-zocalo: #145343;
+  --color-zocalo-deep: #0E3B30;
+  --color-zocalo-hover: #104437;
+  --color-zocalo-soft: #E6F2EE;
+  --color-zocalo-on-muted: #CBEAD9;
+
+  --color-fiado: #B44C1E;
+  --color-fiado-hover: #963E18;
+  --color-fiado-soft: #FBECE5;
+
+  --color-abono: #157A4A;
+  --color-abono-hover: #10633C;
+  --color-abono-soft: #E5F5EC;
+
+  --color-danger: #B42318;
+  --color-danger-soft: #FEECEB;
+
+  --color-ink: #18211E;
+  --color-ink-muted: #4A5954;
+  --color-ink-subtle: #5B6B65;
+
+  --font-sans: "Public Sans Variable", "Public Sans", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html {
+    /* ponytail: fondo raíz #145343 para que iOS Safari / PWA pinte la barra de estado y el rebote superior
+       en verde Zócalo con iconos blancos nítidos, sin aplicar el velo borroso claro sobre el header */
+    background-color: var(--color-zocalo);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    caret-color: var(--color-zocalo);
+    scrollbar-color: var(--color-border-strong) var(--color-ground);
+    scrollbar-width: thin;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    /* ponytail: WebKit iOS toma document.body backgroundColor para el bolsillo superior (status bar pocket).
+       Al mantener html y body en #145343 y aplicar --color-ground solo en <main>, iOS elimina por completo el velo claro */
+    background-color: var(--color-zocalo);
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background-color: var(--color-zocalo);
+    color: var(--color-ground);
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  :focus-visible {
+    outline: 2.5px solid var(--color-zocalo);
+    outline-offset: 2px;
+  }
+}
+
+.tabular-cop {
+  font-variant-numeric: tabular-nums;
+}
+
+.h-safe-top {
+  height: env(safe-area-inset-top, 0px);
+}
+
+.pt-safe {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+}
+
+@media (min-width: 1024px) {
+  .pt-safe {
+    padding-top: 1rem;
+  }
+}
+
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

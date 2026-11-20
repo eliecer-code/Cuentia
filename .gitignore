@@ -1,0 +1,35 @@
+# Dependencies & builds
+node_modules/
+dist/
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Firebase local runtime & debug logs
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*-debug.log
+
+# Impeccable local/runtime only (commit PRODUCT.md, DESIGN.md, .impeccable/config.json, surfaces/, design.json)
+.impeccable/config.local.json
+.impeccable/questions/
+.impeccable/mocks/
+.impeccable/review/
+
+# Trail local cache (keep .trail/ learnings tracked)
+graft/
+.trail/cache/
+
+# OS & editors
+.DS_Store
+Thumbs.db
+*.log

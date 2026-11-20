@@ -1,0 +1,456 @@
+rules_version = '2';
+
+// Cuentia — Reglas de Seguridad Multi-Tenant, RBAC e Inmutabilidad (Cloud Firestore)
+// Default-deny total. Toda autorización lee membresía activa en tiempo real (`status == 'active'`),
+// garantizando Kill Switch inmediato al revocar un colaborador.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================================================
+    // HELPERS DE AUTENTICACIÓN Y MULTI-TENANT
+    // ========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function authEmail() {
+      return 'email' in request.auth.token && request.auth.token.email is string
+        ? request.auth.token.email.lower()
+        : '';
+    }
+
+    function memberPath(storeId, userId) {
+      return /databases/$(database)/documents/stores/$(storeId)/members/$(userId);
+    }
+
+    function storePath(storeId) {
+      return /databases/$(database)/documents/stores/$(storeId);
+    }
+
+    function isActiveMember(storeId) {
+      return isSignedIn()
+        && exists(memberPath(storeId, uid()))
+        && get(memberPath(storeId, uid())).data.status == 'active';
+    }
+
+    function hasRole(storeId, roles) {
+      return isActiveMember(storeId)
+        && get(memberPath(storeId, uid())).data.role in roles;
+    }
+
+    function isOwner(storeId) {
+      return hasRole(storeId, ['owner']);
+    }
+
+    function isManager(storeId) {
+      return hasRole(storeId, ['owner', 'admin']);
+    }
+
+    // ========================================================================
+    // PERFILES DE USUARIO Y MEMBRESÍAS PROPIAS (`/users/{userId}`)
+    // ========================================================================
+    match /users/{userId} {
+      allow read: if isSignedIn() && uid() == userId;
+
+      allow create: if isSignedIn()
+        && uid() == userId
+        && request.resource.data.status == 'active'
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() >= 1;
+
+      // El usuario solo actualiza su nombre/teléfono; nunca su estado de cuenta
+      allow update: if isSignedIn()
+        && uid() == userId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.anonymizedAt == resource.data.anonymizedAt;
+
+      allow delete: if false;
+
+      // Índice de tiendas del usuario para listar `getMyStores()` sin escaneos globales
+      match /memberships/{storeId} {
+        allow read: if isSignedIn() && uid() == userId;
+
+        // Solo puede crearse/actualizarse en sincronía atómica con `stores/{storeId}/members/{userId}`
+        allow create, update: if isSignedIn()
+          && (uid() == userId || isManager(storeId))
+          && getAfter(memberPath(storeId, userId)).data.role == request.resource.data.role
+          && getAfter(memberPath(storeId, userId)).data.status == request.resource.data.status;
+
+        allow delete: if false;
+      }
+    }
+
+    // ========================================================================
+    // TIENDAS (RAÍZ DE AISLAMIENTO MULTI-TENANT) `/stores/{storeId}`
+    // ========================================================================
+    match /stores/{storeId} {
+      allow get: if isActiveMember(storeId);
+      // Prohibido listar todas las tiendas de la plataforma
+      allow list: if false;
+
+      // Creación atómica verificada: exige crear la membresía owner en el mismo commit
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUserId == uid()
+        && request.resource.data.status == 'active'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.currencyCode == 'COP'
+        && request.resource.data.currencyMinorExponent == 0
+        && request.resource.data.timezone is string
+        && request.resource.data.allowNegativeBalance == false
+        && getAfter(memberPath(storeId, uid())).data.role == 'owner'
+        && getAfter(memberPath(storeId, uid())).data.status == 'active';
+
+      // Edición normal (owner/admin sin cambiar ownerUserId ni status)
+      // o transferencia atómica de propiedad iniciada por el owner actual hacia un admin activo
+      allow update: if (
+        isManager(storeId)
+        && request.resource.data.ownerUserId == resource.data.ownerUserId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.currencyCode == resource.data.currencyCode
+        && request.resource.data.currencyMinorExponent == resource.data.currencyMinorExponent
+        && request.resource.data.timezone == resource.data.timezone
+        && request.resource.data.allowNegativeBalance == false
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+      ) || (
+        isOwner(storeId)
+        && request.resource.data.ownerUserId != resource.data.ownerUserId
+        && exists(memberPath(storeId, request.resource.data.ownerUserId))
+        && get(memberPath(storeId, request.resource.data.ownerUserId)).data.role == 'admin'
+        && get(memberPath(storeId, request.resource.data.ownerUserId)).data.status == 'active'
+        && getAfter(memberPath(storeId, request.resource.data.ownerUserId)).data.role == 'owner'
+        && getAfter(memberPath(storeId, uid())).data.role == 'admin'
+      );
+
+      allow delete: if false;
+
+      // ----------------------------------------------------------------------
+      // MIEMBROS DE TIENDA `/stores/{storeId}/members/{memberUid}`
+      // ----------------------------------------------------------------------
+      match /members/{memberUid} {
+        // Lectura propia directa (evita recursión) o de compañeros si el lector es miembro activo
+        allow get: if isSignedIn() && (uid() == memberUid || isActiveMember(storeId));
+        allow list: if isActiveMember(storeId);
+
+        // Alta de miembro:
+        // (a) dueño creador durante alta atómica de tienda, o
+        // (b) aceptación atómica de invitación válida con tokenHash para el correo verificado del usuario
+        allow create: if isSignedIn()
+          && request.resource.data.storeId == storeId
+          && request.resource.data.userId == memberUid
+          && request.resource.data.status == 'active'
+          && (
+            (
+              uid() == memberUid
+              && request.resource.data.role == 'owner'
+              && !exists(storePath(storeId))
+              && getAfter(storePath(storeId)).data.ownerUserId == uid()
+            )
+            || (
+              uid() == memberUid
+              && request.resource.data.role in ['admin', 'employee']
+              && 'invitationTokenHash' in request.resource.data
+              && request.resource.data.invitationTokenHash is string
+              && exists(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash))
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.storeId == storeId
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.status == 'pending'
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.invitedEmail == authEmail()
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.role == request.resource.data.role
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.expiresAt > request.time
+              && getAfter(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.status == 'accepted'
+            )
+          );
+
+        // Actualización de miembro:
+        // (a) owner cambia rol (admin<->employee) o revoca a un no-owner
+        // (b) admin revoca únicamente a un employee
+        // (c) transferencia atómica de propiedad (owner actual <-> admin objetivo)
+        // (d) reactivación por invitación válida
+        allow update: if isSignedIn()
+          && request.resource.data.storeId == storeId
+          && request.resource.data.userId == resource.data.userId
+          && (
+            (
+              isOwner(storeId)
+              && memberUid != uid()
+              && resource.data.role != 'owner'
+              && request.resource.data.role in ['admin', 'employee']
+              && request.resource.data.status in ['active', 'revoked']
+            )
+            || (
+              hasRole(storeId, ['admin'])
+              && memberUid != uid()
+              && resource.data.role == 'employee'
+              && request.resource.data.role == 'employee'
+              && request.resource.data.status == 'revoked'
+            )
+            || (
+              isOwner(storeId)
+              && getAfter(storePath(storeId)).data.ownerUserId != get(storePath(storeId)).data.ownerUserId
+              && (
+                (memberUid == uid() && request.resource.data.role == 'admin' && request.resource.data.status == 'active')
+                || (memberUid == getAfter(storePath(storeId)).data.ownerUserId && resource.data.role == 'admin' && request.resource.data.role == 'owner' && request.resource.data.status == 'active')
+              )
+            )
+            || (
+              uid() == memberUid
+              && resource.data.role != 'owner'
+              && request.resource.data.status == 'active'
+              && request.resource.data.invitationTokenHash is string
+              && exists(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash))
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.storeId == storeId
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.status == 'pending'
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.invitedEmail == authEmail()
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.role == request.resource.data.role
+              && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.expiresAt > request.time
+              && getAfter(/databases/$(database)/documents/invitations/$(request.resource.data.invitationTokenHash)).data.status == 'accepted'
+            )
+          );
+
+        allow delete: if false;
+      }
+
+      // ----------------------------------------------------------------------
+      // CLIENTES DE LA TIENDA `/stores/{storeId}/customers/{customerId}`
+      // ----------------------------------------------------------------------
+      match /customers/{customerId} {
+        allow read: if isActiveMember(storeId);
+
+        // Alta con saldo $0 o migración atómica desde cuaderno (`opening_balance` en mismo commit)
+        allow create: if isActiveMember(storeId)
+          && request.resource.data.storeId == storeId
+          && request.resource.data.createdBy == uid()
+          && request.resource.data.fullName is string
+          && request.resource.data.fullName.size() >= 2
+          && request.resource.data.fullName.size() <= 120
+          && request.resource.data.creditStatus == 'active'
+          && request.resource.data.currentBalance is int
+          && request.resource.data.lastLedgerSeq is int
+          && (
+            request.resource.data.creditLimit == null
+            || (request.resource.data.creditLimit is int && request.resource.data.creditLimit >= 0)
+          )
+          && (
+            (request.resource.data.currentBalance == 0 && request.resource.data.lastLedgerSeq == 0)
+            || (
+              request.resource.data.currentBalance > 0
+              && request.resource.data.lastLedgerSeq == 1
+              && request.resource.data.lastLedgerEntryId is string
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId)).data.entryType == 'opening_balance'
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId)).data.customerId == customerId
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId)).data.balanceAfter == request.resource.data.currentBalance
+            )
+          );
+
+        // Blindaje financiero (`BR-03`, `BR-16`, `SEC`):
+        // - `currentBalance` y `lastLedgerSeq` solo cambian junto a un asiento nuevo válido en `ledgerEntries`.
+        // - Solo `owner`/`admin` (`isManager`) modifican `creditLimit` o `creditStatus`.
+        // - Imposible pasar a `archived` si `currentBalance != 0`.
+        allow update: if isActiveMember(storeId)
+          && request.resource.data.storeId == resource.data.storeId
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.fullName is string
+          && request.resource.data.fullName.size() >= 2
+          && request.resource.data.fullName.size() <= 120
+          && request.resource.data.creditStatus in ['active', 'frozen', 'archived']
+          && (request.resource.data.creditStatus != 'archived' || request.resource.data.currentBalance == 0)
+          && (
+            isManager(storeId)
+            || (
+              request.resource.data.creditLimit == resource.data.creditLimit
+              && request.resource.data.creditStatus == resource.data.creditStatus
+            )
+          )
+          && (
+            request.resource.data.creditLimit == null
+            || (request.resource.data.creditLimit is int && request.resource.data.creditLimit >= 0)
+          )
+          && (
+            (
+              request.resource.data.currentBalance == resource.data.currentBalance
+              && request.resource.data.lastLedgerSeq == resource.data.lastLedgerSeq
+            )
+            || (
+              request.resource.data.lastLedgerSeq == resource.data.lastLedgerSeq + 1
+              && request.resource.data.lastLedgerEntryId is string
+              && !exists(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId))
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId)).data.customerId == customerId
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId)).data.customerSeq == request.resource.data.lastLedgerSeq
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.lastLedgerEntryId)).data.balanceAfter == request.resource.data.currentBalance
+            )
+          );
+
+        allow delete: if false;
+      }
+
+      // ----------------------------------------------------------------------
+      // LIBRO MAYOR INMUTABLE `/stores/{storeId}/ledgerEntries/{entryId}` (`BR-01`..`BR-15`)
+      // `entryId == idempotencyKey` garantiza idempotencia nativa atómica.
+      // ----------------------------------------------------------------------
+      match /ledgerEntries/{entryId} {
+        allow read: if isActiveMember(storeId);
+
+        allow create: if isActiveMember(storeId)
+          && request.resource.data.storeId == storeId
+          && request.resource.data.createdBy == uid()
+          && request.resource.data.idempotencyKey == entryId
+          && request.resource.data.customerId is string
+          && request.resource.data.customerSeq is int
+          && request.resource.data.customerSeq >= 1
+          && request.resource.data.signedAmount is int
+          && request.resource.data.signedAmount != 0
+          && request.resource.data.balanceBefore is int
+          && request.resource.data.balanceAfter is int
+          && request.resource.data.balanceAfter == request.resource.data.balanceBefore + request.resource.data.signedAmount
+          && request.resource.data.businessDate is string
+          && (
+            get(storePath(storeId)).data.allowNegativeBalance == true
+            || request.resource.data.balanceAfter >= 0
+          )
+          && (
+            getAfter(/databases/$(database)/documents/stores/$(storeId)/customers/$(request.resource.data.customerId)).data.creditStatus != 'archived'
+          )
+          && (
+            getAfter(/databases/$(database)/documents/stores/$(storeId)/customers/$(request.resource.data.customerId)).data.currentBalance == request.resource.data.balanceAfter
+          )
+          && (
+            (
+              request.resource.data.entryType == 'credit_sale'
+              && request.resource.data.signedAmount > 0
+              && request.resource.data.paymentMethod == null
+              && request.resource.data.reversesEntryId == null
+              && get(/databases/$(database)/documents/stores/$(storeId)/customers/$(request.resource.data.customerId)).data.creditStatus == 'active'
+            )
+            || (
+              request.resource.data.entryType == 'payment'
+              && request.resource.data.signedAmount < 0
+              && request.resource.data.paymentMethod in ['cash', 'nequi', 'daviplata', 'bank_transfer', 'other']
+              && request.resource.data.reversesEntryId == null
+            )
+            || (
+              request.resource.data.entryType == 'opening_balance'
+              && request.resource.data.signedAmount > 0
+              && request.resource.data.customerSeq == 1
+              && request.resource.data.paymentMethod == null
+              && request.resource.data.reversesEntryId == null
+            )
+            || (
+              request.resource.data.entryType == 'adjustment'
+              && isManager(storeId)
+              && request.resource.data.paymentMethod == null
+              && request.resource.data.reversesEntryId == null
+              && request.resource.data.reason is string
+              && request.resource.data.reason.size() >= 5
+            )
+            || (
+              request.resource.data.entryType == 'reversal'
+              && request.resource.data.reversesEntryId is string
+              && request.resource.data.reversesEntryId != entryId
+              && request.resource.data.reason is string
+              && request.resource.data.reason.size() >= 5
+              && (
+                isManager(storeId)
+                || (
+                  get(storePath(storeId)).data.employeeCanReverseMinutes > 0
+                  && get(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.reversesEntryId)).data.createdBy == uid()
+                )
+              )
+              && exists(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.reversesEntryId))
+              && get(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.reversesEntryId)).data.customerId == request.resource.data.customerId
+              && get(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.reversesEntryId)).data.entryType != 'reversal'
+              && request.resource.data.signedAmount == -get(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.reversesEntryId)).data.signedAmount
+              && !exists(/databases/$(database)/documents/stores/$(storeId)/reversals/$(request.resource.data.reversesEntryId))
+              && getAfter(/databases/$(database)/documents/stores/$(storeId)/reversals/$(request.resource.data.reversesEntryId)).data.reversalEntryId == entryId
+            )
+          );
+
+        // Inmutabilidad absoluta (`BR-04`, `SEC-05`)
+        allow update, delete: if false;
+      }
+
+      // Candado anti-doble-reversión `/stores/{storeId}/reversals/{originalEntryId}`
+      match /reversals/{originalEntryId} {
+        allow read: if isActiveMember(storeId);
+        allow create: if isActiveMember(storeId)
+          && request.resource.data.originalEntryId == originalEntryId
+          && request.resource.data.reversalEntryId is string
+          && getAfter(/databases/$(database)/documents/stores/$(storeId)/ledgerEntries/$(request.resource.data.reversalEntryId)).data.reversesEntryId == originalEntryId;
+        allow update, delete: if false;
+      }
+
+      // ----------------------------------------------------------------------
+      // AUDITORÍA INMUTABLE `/stores/{storeId}/auditLogs/{logId}`
+      // ----------------------------------------------------------------------
+      match /auditLogs/{logId} {
+        allow read: if isManager(storeId);
+        allow create: if isSignedIn()
+          && request.resource.data.storeId == storeId
+          && request.resource.data.actorUserId == uid()
+          && getAfter(memberPath(storeId, uid())).data.status == 'active';
+        allow update, delete: if false;
+      }
+    }
+
+    // ========================================================================
+    // INVITACIONES POR HASH SHA-256 `/invitations/{tokenHash}`
+    // Sin listado público (anti-enumeración). Solo get por hash o consulta acotada por storeId.
+    // ========================================================================
+    match /invitations/{tokenHash} {
+      // Un invitado puede leer únicamente si conoce el hash exacto Y su correo coincide,
+      // o si es owner/admin de la tienda emisora.
+      allow get: if isSignedIn() && (
+        resource.data.invitedEmail == authEmail()
+        || isManager(resource.data.storeId)
+      );
+
+      // Listado únicamente para owner/admin filtrando su propia tienda
+      allow list: if isSignedIn() && isManager(resource.data.storeId);
+
+      // Crear invitación: owner puede invitar admin/employee; admin solo employee; nunca owner
+      allow create: if isSignedIn()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.invitedBy == uid()
+        && request.resource.data.role in ['admin', 'employee']
+        && (
+          isOwner(request.resource.data.storeId)
+          || (hasRole(request.resource.data.storeId, ['admin']) && request.resource.data.role == 'employee')
+        );
+
+      // Revocar por manager o aceptar por el correo invitado exactamente una vez
+      allow update: if isSignedIn()
+        && request.resource.data.storeId == resource.data.storeId
+        && request.resource.data.invitedEmail == resource.data.invitedEmail
+        && request.resource.data.role == resource.data.role
+        && resource.data.status == 'pending'
+        && (
+          (
+            request.resource.data.status == 'revoked'
+            && (
+              isOwner(resource.data.storeId)
+              || (hasRole(resource.data.storeId, ['admin']) && resource.data.role == 'employee')
+            )
+          )
+          || (
+            request.resource.data.status == 'accepted'
+            && resource.data.invitedEmail == authEmail()
+            && resource.data.expiresAt > request.time
+            && existsAfter(memberPath(resource.data.storeId, uid()))
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // Default-deny para cualquier otra ruta
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
