@@ -208,12 +208,12 @@ describe('Fase 7 — Hardening, Matriz de 16 Casos Límite, Scrubbing PII y Simu
 
   it('Scrubbing de PII y credenciales en observabilidad (Ley 1581 / SEC-07)', () => {
     const rawText =
-      'Error autenticando juanperez032197@gmail.com tel +57 312 456 7890 con Bearer eyJhbGciOiJIUzI1NiJ9.abc y key AIzaSyD_5iCz3SnuYJN34MviGaNjl5hjnfOnOqo'
+      'Error autenticando juanperez032197@gmail.com tel +57 312 456 7890 con Bearer eyJhbGciOiJIUzI1NiJ9.abc y key AIza_TEST_ONLY_NOT_A_REAL_KEY'
     const scrubbed = scrubPiiText(rawText)
     expect(scrubbed).not.toContain('juanperez032197@gmail.com')
     expect(scrubbed).not.toContain('312 456 7890')
     expect(scrubbed).not.toContain('eyJhbGciOiJIUzI1NiJ9')
-    expect(scrubbed).not.toContain('AIzaSyD_5iCz3SnuYJN34MviGaNjl5hjnfOnOqo')
+    expect(scrubbed).not.toContain('AIza_TEST_ONLY_NOT_A_REAL_KEY')
     expect(scrubbed).toContain('[EMAIL_REDACTED]')
     expect(scrubbed).toContain('[PHONE_REDACTED]')
     expect(scrubbed).toContain('Bearer [TOKEN_REDACTED]')
